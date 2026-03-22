@@ -1,0 +1,365 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────
+
+enum TravelStatus {
+  TOURIST
+  LOCAL
+}
+
+enum UserRole {
+  TRAVELER
+  HOSPITAL_ADMIN
+  SUPER_ADMIN
+}
+
+enum AvailabilityStatus {
+  OPEN
+  CLOSED
+  LIMITED
+}
+
+enum EmergencyStatus {
+  TRIGGERED
+  RESPONDED
+  RESOLVED
+  CANCELLED
+}
+
+enum ChatRoomType {
+  SUPPORT
+  EMERGENCY
+  CONSULTATION
+}
+
+enum SenderRole {
+  USER
+  HOSPITAL
+  ADMIN
+  SYSTEM
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  LOCATION
+  SYSTEM
+}
+
+enum NotificationType {
+  EMERGENCY
+  CHAT
+  REVIEW
+  SYSTEM
+  PROMOTION
+  APPOINTMENT
+}
+
+// ─── Models ─────────────────────────────────────────────
+
+model User {
+  id                    String        @id @default(uuid())
+  email                 String        @unique
+  phone                 String?       @unique
+  passwordHash          String
+  firstName             String
+  lastName              String
+  nationality           String?
+  preferredLanguage     String        @default("en")
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  medicalNotes          String?
+  travelStatus          TravelStatus  @default(TOURIST)
+  role                  UserRole      @default(TRAVELER)
+  emailVerified         Boolean       @default(false)
+  phoneVerified         Boolean       @default(false)
+  avatarUrl             String?
+  deviceTokens          String[]      @default([])
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  sessions       Session[]
+  reviews        Review[]
+  favorites      Favorite[]
+  emergencyLogs  EmergencyLog[]
+  chatRooms      ChatRoom[]
+  chatMessages   ChatMessage[]
+  notifications  Notification[]
+  recentlyViewed RecentlyViewed[]
+  hospitals      Hospital[]       @relation("HospitalAdmin")
+
+  @@index([email])
+  @@index([phone])
+  @@index([role])
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  token        String   @unique
+  refreshToken String   @unique
+  deviceInfo   String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([refreshToken])
+  @@map("sessions")
+}
+
+model Hospital {
+  id                  String             @id @default(uuid())
+  name                String
+  slug                String             @unique
+  description         String?
+  address             String
+  city                String
+  country             String
+  latitude            Float
+  longitude           Float
+  phone               String
+  email               String?
+  website             String?
+  coverImage          String?
+  images              String[]           @default([])
+  isVerified          Boolean            @default(false)
+  isEmergencyCapable  Boolean            @default(false)
+  availabilityStatus  AvailabilityStatus @default(OPEN)
+  rating              Float              @default(0)
+  reviewCount         Int                @default(0)
+  adminUserId         String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  adminUser      User?              @relation("HospitalAdmin", fields: [adminUserId], references: [id], onDelete: SetNull)
+  languages      HospitalLanguage[]
+  doctors        Doctor[]
+  specialties    HospitalSpecialty[]
+  pricing        Pricing[]
+  reviews        Review[]
+  favorites      Favorite[]
+  emergencyLogs  EmergencyLog[]
+  chatRooms      ChatRoom[]
+  recentlyViewed RecentlyViewed[]
+
+  @@index([city])
+  @@index([country])
+  @@index([latitude, longitude])
+  @@index([slug])
+  @@index([isVerified])
+  @@index([availabilityStatus])
+  @@map("hospitals")
+}
+
+model HospitalLanguage {
+  id         String @id @default(uuid())
+  hospitalId String
+  language   String
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@unique([hospitalId, language])
+  @@index([hospitalId])
+  @@map("hospital_languages")
+}
+
+model Doctor {
+  id              String   @id @default(uuid())
+  hospitalId      String
+  name            String
+  specialty       String
+  qualifications  String[]
+  languages       String[]
+  avatarUrl       String?
+  isAvailable     Boolean  @default(true)
+  consultationFee Float?
+  experience      Int?
+  createdAt       DateTime @default(now())
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@index([hospitalId])
+  @@index([specialty])
+  @@index([isAvailable])
+  @@map("doctors")
+}
+
+model Specialty {
+  id          String @id @default(uuid())
+  name        String @unique
+  icon        String?
+  description String?
+
+  hospitals HospitalSpecialty[]
+
+  @@map("specialties")
+}
+
+model HospitalSpecialty {
+  hospitalId  String
+  specialtyId String
+
+  hospital  Hospital  @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  specialty Specialty @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+
+  @@id([hospitalId, specialtyId])
+  @@map("hospital_specialties")
+}
+
+model Pricing {
+  id          String  @id @default(uuid())
+  hospitalId  String
+  serviceName String
+  category    String
+  minPrice    Float
+  maxPrice    Float
+  currency    String  @default("USD")
+  description String?
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@index([hospitalId])
+  @@index([category])
+  @@map("pricing")
+}
+
+model Review {
+  id         String   @id @default(uuid())
+  hospitalId String
+  userId     String
+  rating     Int
+  title      String?
+  content    String
+  isVerified Boolean  @default(false)
+  isApproved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([hospitalId])
+  @@index([userId])
+  @@index([isApproved])
+  @@map("reviews")
+}
+
+model Favorite {
+  id         String   @id @default(uuid())
+  userId     String
+  hospitalId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, hospitalId])
+  @@index([userId])
+  @@map("favorites")
+}
+
+model EmergencyLog {
+  id                String          @id @default(uuid())
+  userId            String
+  latitude          Float
+  longitude         Float
+  status            EmergencyStatus @default(TRIGGERED)
+  nearestHospitalId String?
+  ambulanceCalled   Boolean         @default(false)
+  notes             String?
+  createdAt         DateTime        @default(now())
+  resolvedAt        DateTime?
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nearestHospital Hospital? @relation(fields: [nearestHospitalId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("emergency_logs")
+}
+
+model ChatRoom {
+  id         String       @id @default(uuid())
+  name       String?
+  type       ChatRoomType @default(SUPPORT)
+  userId     String
+  hospitalId String?
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital Hospital?     @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  messages ChatMessage[]
+
+  @@index([userId])
+  @@index([hospitalId])
+  @@index([isActive])
+  @@map("chat_rooms")
+}
+
+model ChatMessage {
+  id                String      @id @default(uuid())
+  chatRoomId        String
+  senderId          String
+  senderRole        SenderRole
+  content           String
+  translatedContent String?
+  messageType       MessageType @default(TEXT)
+  isRead            Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+
+  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  sender   User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([chatRoomId])
+  @@index([senderId])
+  @@index([createdAt])
+  @@map("chat_messages")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  type      NotificationType @default(SYSTEM)
+  data      Json?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model RecentlyViewed {
+  id         String   @id @default(uuid())
+  userId     String
+  hospitalId String
+  viewedAt   DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, hospitalId])
+  @@index([userId])
+  @@index([viewedAt])
+  @@map("recently_viewed")
+}

@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "MedAssist Global",
+    "slug": "medassist-global",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#2563EB"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.medassist.global",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "MedAssist needs your location to find nearby hospitals and provide emergency services.",
+        "NSLocationAlwaysUsageDescription": "MedAssist needs background location access to track emergency assistance."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2563EB"
+      },
+      "package": "com.medassist.global",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "plugins": [
+      "expo-location",
+      "expo-notifications",
+      "expo-secure-store",
+      "expo-localization",
+      [
+        "expo-haptics",
+        {
+          "ios": {
+            "supportsHapticFeedback": true
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "medassist-global"
+      }
+    }
+  }
+}

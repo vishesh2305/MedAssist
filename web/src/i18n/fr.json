@@ -1,0 +1,28 @@
+{
+  "common": {
+    "appName": "MedAssist Global",
+    "search": "Rechercher",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "retry": "R\u00e9essayer",
+    "noResults": "Aucun r\u00e9sultat trouv\u00e9",
+    "signIn": "Se connecter",
+    "signUp": "S'inscrire",
+    "signOut": "Se d\u00e9connecter"
+  },
+  "nav": {
+    "home": "Accueil",
+    "hospitals": "H\u00f4pitaux",
+    "emergency": "Urgence",
+    "chat": "Messagerie"
+  },
+  "hero": {
+    "title": "Trouvez des h\u00f4pitaux de confiance pr\u00e8s de vous",
+    "subtitle": "Acc\u00e9dez \u00e0 des soins de sant\u00e9 de qualit\u00e9 partout dans le monde.",
+    "searchPlaceholder": "Rechercher par h\u00f4pital, sp\u00e9cialit\u00e9 ou ville..."
+  }
+}
