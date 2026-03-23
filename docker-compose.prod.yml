@@ -1,0 +1,241 @@
+# =============================================================================
+# MedAssist Global - Production Docker Compose
+# =============================================================================
+# Usage:
+#   1. Copy .env.example to .env and fill in all values
+#   2. docker compose -f docker-compose.prod.yml up -d
+#   3. docker compose -f docker-compose.prod.yml logs -f
+#
+# This configuration differs from the dev compose in:
+#   - Restart policies: always (not unless-stopped)
+#   - Resource limits on all containers
+#   - Redis persistence and password authentication
+#   - PostgreSQL tuned for production
+#   - Nginx with SSL termination support
+#   - Health checks with tighter intervals
+#   - No host port exposure except through Nginx (80/443)
+#   - Logging configuration with size limits
+# =============================================================================
+
+services:
+  # ---------- Data Stores ----------
+  postgres:
+    image: postgres:15-alpine
+    container_name: medassist-postgres-prod
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-medassist}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-medassist_prod}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medassist} -d ${POSTGRES_DB:-medassist_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - medassist-prod-net
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Do NOT expose ports in production - only internal network access
+    # ports:
+    #   - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: medassist-redis-prod
+    restart: always
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - medassist-prod-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------- Application Services ----------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend.Dockerfile
+    container_name: medassist-backend-prod
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-medassist}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medassist_prod}?sslmode=prefer
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://medassistglobal.com}
+      SOCKET_CORS_ORIGINS: ${CORS_ORIGINS:-https://medassistglobal.com}
+      FRONTEND_URL: ${FRONTEND_URL:-https://medassistglobal.com}
+      SMS_MOCK: "false"
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-smtp.sendgrid.net}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-apikey}
+      SMTP_PASS: ${SMTP_PASS:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      SENTRY_DSN: ${SENTRY_DSN_BACKEND:-}
+      PORT: 4000
+    networks:
+      - medassist-prod-net
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    # No host port - accessed only via Nginx
+
+  web:
+    build:
+      context: ./web
+      dockerfile: ../docker/web.Dockerfile
+    container_name: medassist-web-prod
+    restart: always
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://medassistglobal.com/api/v1}
+      NEXT_PUBLIC_AI_URL: ${NEXT_PUBLIC_AI_URL:-https://medassistglobal.com/api/ai}
+      PORT: 3000
+    networks:
+      - medassist-prod-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ai-services:
+    build:
+      context: ./ai-services
+      dockerfile: Dockerfile
+    container_name: medassist-ai-prod
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-3.5-turbo}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      PORT: 8000
+      ENVIRONMENT: production
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://medassistglobal.com}
+      LOG_LEVEL: warning
+    networks:
+      - medassist-prod-net
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  nginx:
+    image: nginx:alpine
+    container_name: medassist-nginx-prod
+    restart: always
+    depends_on:
+      - backend
+      - web
+      - ai-services
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/ssl:/etc/nginx/ssl:ro          # Mount SSL certs here
+      - nginx_logs:/var/log/nginx
+    networks:
+      - medassist-prod-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+        reservations:
+          memory: 64M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  postgres_prod_data:
+    driver: local
+  redis_prod_data:
+    driver: local
+  nginx_logs:
+    driver: local
+
+networks:
+  medassist-prod-net:
+    driver: bridge

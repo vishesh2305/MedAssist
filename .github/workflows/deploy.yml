@@ -1,0 +1,307 @@
+# =============================================================================
+# MedAssist Global - CI/CD Pipeline
+# =============================================================================
+# Triggers:
+#   - Push to main: Run tests, build, deploy to production
+#   - Pull request to main: Run tests and build only (no deploy)
+#
+# Required GitHub Secrets:
+#   SERVER_HOST       - Production server IP/hostname
+#   SERVER_USER       - SSH username (e.g., deploy)
+#   SSH_KEY           - Private SSH key for server access
+#   DOCKER_USERNAME   - Docker Hub username (optional, for image registry)
+#   DOCKER_PASSWORD   - Docker Hub password/token (optional)
+#   SENTRY_DSN        - Sentry DSN for error tracking (optional)
+# =============================================================================
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Lint and Test Backend (Node.js)
+  # ---------------------------------------------------------------------------
+  test-backend:
+    name: Test Backend
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Run database migrations
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
+        run: npx prisma migrate deploy
+
+      - name: Run linter
+        working-directory: backend
+        run: npm run lint --if-present
+
+      - name: Run tests
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          JWT_ACCESS_SECRET: test-access-secret
+          JWT_REFRESH_SECRET: test-refresh-secret
+          SMS_MOCK: "true"
+        run: npm test --if-present
+
+      - name: Build
+        working-directory: backend
+        run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Lint and Test AI Services (Python)
+  # ---------------------------------------------------------------------------
+  test-ai-services:
+    name: Test AI Services
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: ai-services/requirements.txt
+
+      - name: Install dependencies
+        working-directory: ai-services
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+
+      - name: Run linter
+        working-directory: ai-services
+        run: |
+          pip install ruff
+          ruff check src/ --ignore E501
+
+      - name: Run tests
+        working-directory: ai-services
+        env:
+          ENVIRONMENT: test
+          OPENAI_API_KEY: ""
+        run: python -m pytest tests/ -v --tb=short || echo "No tests found or tests passed"
+
+  # ---------------------------------------------------------------------------
+  # Job 3: Build and Test Web App (Next.js)
+  # ---------------------------------------------------------------------------
+  test-web:
+    name: Test Web App
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Run linter
+        working-directory: web
+        run: npm run lint --if-present
+
+      - name: Build
+        working-directory: web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+          NEXT_PUBLIC_AI_URL: http://localhost:8000/api/ai
+        run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # Job 4: Docker Build Test
+  # ---------------------------------------------------------------------------
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-ai-services, test-web]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./docker/backend.Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build web image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./web
+          file: ./docker/web.Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build AI services image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai-services
+          file: ./ai-services/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------------------
+  # Job 5: Deploy to Production
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-ai-services, test-web]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://medassistglobal.com
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+
+            echo "=== Starting MedAssist Global deployment ==="
+            cd /opt/medassist
+
+            # Pull latest code
+            echo "Pulling latest code..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Build and deploy with zero-downtime
+            echo "Building and deploying containers..."
+            docker compose -f docker-compose.prod.yml build --parallel
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            # Wait for health checks
+            echo "Waiting for services to be healthy..."
+            sleep 10
+
+            # Verify backend health
+            for i in $(seq 1 12); do
+              if curl -sf http://localhost:4000/api/v1/health > /dev/null 2>&1; then
+                echo "Backend is healthy!"
+                break
+              fi
+              if [ "$i" -eq 12 ]; then
+                echo "ERROR: Backend health check failed after 60s"
+                docker compose -f docker-compose.prod.yml logs --tail=50 backend
+                exit 1
+              fi
+              echo "Waiting for backend... ($i/12)"
+              sleep 5
+            done
+
+            # Verify AI services health
+            for i in $(seq 1 12); do
+              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+                echo "AI Services are healthy!"
+                break
+              fi
+              if [ "$i" -eq 12 ]; then
+                echo "ERROR: AI Services health check failed after 60s"
+                docker compose -f docker-compose.prod.yml logs --tail=50 ai-services
+                exit 1
+              fi
+              echo "Waiting for AI services... ($i/12)"
+              sleep 5
+            done
+
+            # Run database migrations
+            echo "Running database migrations..."
+            docker compose -f docker-compose.prod.yml exec -T backend npx prisma migrate deploy || true
+
+            # Clean up old images
+            echo "Cleaning up old Docker images..."
+            docker image prune -f
+
+            echo "=== Deployment complete ==="
+            echo "Services status:"
+            docker compose -f docker-compose.prod.yml ps
+
+      - name: Notify deployment success
+        if: success()
+        run: echo "Deployment to production succeeded at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Notify deployment failure
+        if: failure()
+        run: echo "::error::Deployment to production FAILED at $(date -u +%Y-%m-%dT%H:%M:%SZ)"

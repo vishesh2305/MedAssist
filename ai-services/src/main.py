@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import settings
-from src.routers import symptom_checker, chat_translator, cost_predictor, hospital_ranker
+from src.routers import symptom_checker, chat_translator, cost_predictor, hospital_ranker, health_companion
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -30,6 +30,7 @@ app.include_router(symptom_checker.router, prefix="/api/ai", tags=["Symptom Chec
 app.include_router(chat_translator.router, prefix="/api/ai", tags=["Chat & Translation"])
 app.include_router(cost_predictor.router, prefix="/api/ai", tags=["Cost Prediction"])
 app.include_router(hospital_ranker.router, prefix="/api/ai", tags=["Hospital Ranking"])
+app.include_router(health_companion.router, prefix="/api/ai", tags=["Health Companion"])
 
 
 @app.get("/", tags=["Root"])

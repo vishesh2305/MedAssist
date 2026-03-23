@@ -21,6 +21,11 @@ import {
   Bone,
   Baby,
   Syringe,
+  QrCode,
+  Sparkles,
+  Pill,
+  Plane,
+  Video,
 } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
@@ -300,8 +305,97 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Testimonials */}
+        {/* Key Features Showcase */}
         <section className="py-16 bg-white dark:bg-gray-900">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+                Everything you need for health abroad
+              </h2>
+              <p className="mt-2 text-gray-500 dark:text-gray-400">
+                Comprehensive tools to keep you healthy wherever you travel
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[
+                {
+                  icon: QrCode,
+                  title: 'Medical Passport QR',
+                  description: 'Store your vital health info and share it instantly with any hospital via QR code.',
+                  href: '/medical-passport',
+                  color: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+                },
+                {
+                  icon: Sparkles,
+                  title: 'AI Health Companion',
+                  description: 'Get instant health guidance, symptom checks, and find nearby medical facilities.',
+                  href: '/health-assistant',
+                  color: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
+                },
+                {
+                  icon: Pill,
+                  title: 'Pharmacy Finder',
+                  description: 'Find nearby pharmacies and discover medicine equivalents in any country.',
+                  href: '/pharmacy',
+                  color: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
+                },
+                {
+                  icon: Plane,
+                  title: 'Trip Health Planner',
+                  description: 'Get vaccination requirements, emergency numbers, and health tips for your destination.',
+                  href: '/trip-planner',
+                  color: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400',
+                },
+                {
+                  icon: Video,
+                  title: 'Telemedicine',
+                  description: 'Book video, audio, or chat consultations with doctors from anywhere in the world.',
+                  href: '/telemedicine',
+                  color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
+                },
+                {
+                  icon: Heart,
+                  title: 'Medical Tourism',
+                  description: 'Browse all-inclusive medical treatment packages at top hospitals worldwide.',
+                  href: '/packages',
+                  color: 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400',
+                },
+              ].map((feature, index) => (
+                <motion.div
+                  key={feature.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.4, delay: index * 0.1 }}
+                >
+                  <Link href={feature.href}>
+                    <Card hover className="h-full">
+                      <CardContent>
+                        <div className={`inline-flex items-center justify-center h-12 w-12 rounded-xl ${feature.color} mb-4`}>
+                          <feature.icon className="h-6 w-6" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                          {feature.title}
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                          {feature.description}
+                        </p>
+                        <span className="inline-flex items-center gap-1 text-sm font-medium text-primary-600 dark:text-primary-400">
+                          Learn more
+                          <ArrowRight className="h-4 w-4" />
+                        </span>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Testimonials */}
+        <section className="py-16 bg-surface-light dark:bg-gray-800/50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold text-gray-900 dark:text-white">

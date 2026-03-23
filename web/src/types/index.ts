@@ -252,3 +252,202 @@ export interface DashboardStats {
   emergenciesByStatus?: { status: string; count: number }[];
   recentActivity?: { id: string; type: string; description: string; createdAt: string }[];
 }
+
+// Medical Passport
+export interface MedicalPassport {
+  id: string;
+  userId: string;
+  bloodType: 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-' | '';
+  allergies: string[];
+  medications: string[];
+  conditions: string[];
+  vaccinations: VaccinationRecord[];
+  insuranceProvider?: string;
+  insurancePolicyNumber?: string;
+  insurancePhone?: string;
+  insuranceExpiry?: string;
+  qrCodeUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VaccinationRecord {
+  name: string;
+  date: string;
+}
+
+// Medical Documents
+export interface MedicalDocument {
+  id: string;
+  userId: string;
+  title: string;
+  type: 'PRESCRIPTION' | 'LAB_REPORT' | 'XRAY' | 'DISCHARGE_SUMMARY' | 'INSURANCE_CARD' | 'VACCINATION_RECORD' | 'OTHER';
+  fileUrl: string;
+  fileSize: number;
+  mimeType: string;
+  shareToken?: string;
+  shareExpiresAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Consultations / Telemedicine
+export interface Consultation {
+  id: string;
+  userId: string;
+  doctorName: string;
+  doctorSpecialty: string;
+  doctorAvatarUrl?: string;
+  type: 'VIDEO' | 'AUDIO' | 'CHAT';
+  status: 'SCHEDULED' | 'WAITING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  scheduledAt: string;
+  duration?: number;
+  description?: string;
+  diagnosis?: string;
+  prescription?: string;
+  price: number;
+  currency: string;
+  rating?: number;
+  meetingLink?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Payments
+export interface Payment {
+  id: string;
+  userId: string;
+  amount: number;
+  currency: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
+  type: 'CONSULTATION' | 'PACKAGE' | 'DOCUMENT' | 'OTHER';
+  description: string;
+  referenceId?: string;
+  paymentIntentId?: string;
+  createdAt: string;
+}
+
+// Trip Plans
+export interface TripPlan {
+  id: string;
+  userId: string;
+  destinationCountry: string;
+  destinationCode: string;
+  startDate: string;
+  endDate: string;
+  vaccinations: TripVaccination[];
+  emergencyNumbers: EmergencyNumber[];
+  healthAlerts: string[];
+  packingList: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TripVaccination {
+  name: string;
+  status: 'REQUIRED' | 'RECOMMENDED' | 'OPTIONAL';
+  description?: string;
+}
+
+export interface EmergencyNumber {
+  service: string;
+  number: string;
+}
+
+// Pharmacy
+export interface Pharmacy {
+  id: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  phone?: string;
+  distance?: number;
+  isOpen?: boolean;
+  openingHours?: string;
+}
+
+export interface MedicineEquivalent {
+  originalName: string;
+  equivalentName: string;
+  country: string;
+  requiresPrescription: boolean;
+  activeIngredient?: string;
+  notes?: string;
+}
+
+// Embassy
+export interface Embassy {
+  id: string;
+  nationality: string;
+  country: string;
+  name: string;
+  address: string;
+  phone: string;
+  emergencyPhone?: string;
+  email?: string;
+  website?: string;
+  hours?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+// Wait Times
+export interface WaitTimeEstimate {
+  id: string;
+  hospitalId: string;
+  department: string;
+  estimatedMinutes: number;
+  reportedAt: string;
+  reportedBy?: string;
+  dayOfWeek?: number;
+}
+
+// Medical Tourism Packages
+export interface MedicalPackage {
+  id: string;
+  title: string;
+  category: 'DENTAL' | 'COSMETIC' | 'EYE' | 'CARDIAC' | 'ORTHOPEDIC' | 'GENERAL';
+  hospitalName: string;
+  city: string;
+  country: string;
+  description: string;
+  imageUrl?: string;
+  price: number;
+  currency: string;
+  duration: string;
+  includes: string[];
+  rating: number;
+  reviewCount: number;
+  highlights?: string[];
+  itinerary?: string[];
+  createdAt: string;
+}
+
+// Corporate Programs
+export interface CorporateProgram {
+  id: string;
+  companyName: string;
+  plan: 'BASIC' | 'PROFESSIONAL' | 'ENTERPRISE';
+  employeeCount: number;
+  activeTravelers: number;
+  status: 'ACTIVE' | 'INACTIVE' | 'TRIAL';
+  contactEmail: string;
+  contactPhone?: string;
+  startDate: string;
+  endDate?: string;
+  createdAt: string;
+  employees?: CorporateEmployee[];
+}
+
+export interface CorporateEmployee {
+  id: string;
+  programId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  travelStatus: 'TRAVELING' | 'HOME';
+  currentCountry?: string;
+  createdAt: string;
+}

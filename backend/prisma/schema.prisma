@@ -96,6 +96,15 @@ model User {
   recentlyViewed RecentlyViewed[]
   hospitals      Hospital[]       @relation("HospitalAdmin")
 
+  // New feature relations
+  medicalPassport   MedicalPassport?    @relation("UserMedicalPassport")
+  documents         MedicalDocument[]   @relation("UserDocuments")
+  consultations     Consultation[]      @relation("UserConsultations")
+  payments          Payment[]           @relation("UserPayments")
+  tripPlans         TripPlan[]          @relation("UserTripPlans")
+  waitTimeReports   WaitTimeReport[]    @relation("UserWaitTimeReports")
+  corporateEmployee CorporateEmployee[] @relation("CorporateUser")
+
   @@index([email])
   @@index([phone])
   @@index([role])
@@ -155,6 +164,12 @@ model Hospital {
   chatRooms      ChatRoom[]
   recentlyViewed RecentlyViewed[]
 
+  // New feature relations
+  consultations     Consultation[]         @relation("HospitalConsultations")
+  waitTimeReports   WaitTimeReport[]       @relation("HospitalWaitTimes")
+  partnership       HospitalPartnership[]  @relation("HospitalPartnership")
+  packages          MedicalPackage[]       @relation("HospitalPackages")
+
   @@index([city])
   @@index([country])
   @@index([latitude, longitude])
@@ -190,6 +205,9 @@ model Doctor {
   createdAt       DateTime @default(now())
 
   hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  // New feature relations
+  consultations Consultation[] @relation("DoctorConsultations")
 
   @@index([hospitalId])
   @@index([specialty])
@@ -362,4 +380,261 @@ model RecentlyViewed {
   @@index([userId])
   @@index([viewedAt])
   @@map("recently_viewed")
+}
+
+// ─── Medical Passport ─────────────────────────────
+model MedicalPassport {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation("UserMedicalPassport", fields: [userId], references: [id], onDelete: Cascade)
+  bloodType         String?  // A+, A-, B+, B-, AB+, AB-, O+, O-
+  allergies         String[] // Array of allergy strings
+  medications       String[] // Current medications
+  conditions        String[] // Chronic conditions
+  vaccinations      Json?    // Array of {name, date, expiryDate}
+  insuranceProvider String?
+  insurancePolicyNo String?
+  insurancePhone    String?
+  insuranceExpiry   DateTime?
+  qrCodeData        String?  // Encrypted JSON for QR code
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("medical_passports")
+}
+
+// ─── Medical Documents ────────────────────────────
+model MedicalDocument {
+  id          String       @id @default(uuid())
+  userId      String
+  user        User         @relation("UserDocuments", fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  type        DocumentType
+  fileUrl     String
+  fileSize    Int?
+  mimeType    String?
+  description String?
+  metadata    Json?    // OCR extracted data, tags, etc.
+  shareToken  String?  @unique // For sharing via link
+  shareExpiry DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@map("medical_documents")
+}
+
+enum DocumentType {
+  PRESCRIPTION
+  LAB_REPORT
+  XRAY
+  DISCHARGE_SUMMARY
+  INSURANCE_CARD
+  VACCINATION_RECORD
+  OTHER
+}
+
+// ─── Telemedicine Consultations ───────────────────
+model Consultation {
+  id           String             @id @default(uuid())
+  userId       String
+  user         User               @relation("UserConsultations", fields: [userId], references: [id])
+  doctorId     String?
+  doctor       Doctor?            @relation("DoctorConsultations", fields: [doctorId], references: [id])
+  hospitalId   String?
+  hospital     Hospital?          @relation("HospitalConsultations", fields: [hospitalId], references: [id])
+  type         ConsultationType
+  status       ConsultationStatus @default(SCHEDULED)
+  scheduledAt  DateTime
+  startedAt    DateTime?
+  endedAt      DateTime?
+  duration     Int?               // minutes
+  roomId       String?            // WebRTC room ID
+  notes        String?
+  prescription String?
+  amount       Float?
+  currency     String?            @default("USD")
+  paymentId    String?
+  rating       Int?
+  feedback     String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([doctorId])
+  @@map("consultations")
+}
+
+enum ConsultationType {
+  VIDEO
+  AUDIO
+  CHAT
+}
+
+enum ConsultationStatus {
+  SCHEDULED
+  WAITING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+// ─── Payments ─────────────────────────────────────
+model Payment {
+  id                String        @id @default(uuid())
+  userId            String
+  user              User          @relation("UserPayments", fields: [userId], references: [id])
+  amount            Float
+  currency          String        @default("USD")
+  status            PaymentStatus @default(PENDING)
+  provider          String        @default("stripe") // stripe, razorpay
+  providerPaymentId String?       @unique
+  consultationId    String?
+  hospitalId        String?
+  description       String?
+  receiptUrl        String?
+  metadata          Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([providerPaymentId])
+  @@map("payments")
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// ─── Trip Health Planner ──────────────────────────
+model TripPlan {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation("UserTripPlans", fields: [userId], references: [id], onDelete: Cascade)
+  destination      String   // City or country
+  destinationCode  String?  // ISO country code
+  startDate        DateTime
+  endDate          DateTime
+  checklist        Json?    // Generated health checklist
+  vaccinations     Json?    // Required/recommended vaccinations
+  emergencyNumbers Json?    // Local emergency numbers
+  healthAlerts     Json?    // Active health alerts
+  nearbyHospitals  Json?    // Pre-cached hospital data
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+  @@map("trip_plans")
+}
+
+// ─── Hospital Wait Times ──────────────────────────
+model WaitTimeReport {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation("UserWaitTimeReports", fields: [userId], references: [id])
+  hospitalId  String
+  hospital    Hospital @relation("HospitalWaitTimes", fields: [hospitalId], references: [id])
+  department  String?  // ER, General, Specialist
+  waitMinutes Int
+  reportedAt  DateTime @default(now())
+
+  @@index([hospitalId, reportedAt])
+  @@map("wait_time_reports")
+}
+
+// ─── Hospital Partnerships ────────────────────────
+model HospitalPartnership {
+  id         String            @id @default(uuid())
+  hospitalId String
+  hospital   Hospital          @relation("HospitalPartnership", fields: [hospitalId], references: [id])
+  tier       PartnershipTier   @default(BASIC)
+  features   String[]          // premium_listing, top_placement, analytics, booking
+  monthlyFee Float?
+  status     PartnershipStatus @default(ACTIVE)
+  startDate  DateTime          @default(now())
+  endDate    DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([hospitalId])
+  @@map("hospital_partnerships")
+}
+
+enum PartnershipTier {
+  BASIC
+  PREMIUM
+  ENTERPRISE
+}
+
+enum PartnershipStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  CANCELLED
+}
+
+// ─── Medical Tourism Packages ─────────────────────
+model MedicalPackage {
+  id          String    @id @default(uuid())
+  hospitalId  String?
+  hospital    Hospital? @relation("HospitalPackages", fields: [hospitalId], references: [id])
+  title       String
+  description String
+  category    String   // dental, cosmetic, orthopedic, eye, cardiac
+  procedure   String
+  country     String
+  city        String
+  price       Float
+  currency    String   @default("USD")
+  duration    String   // e.g., "5 days"
+  includes    String[] // flights, hotel, hospital, recovery
+  images      String[]
+  rating      Float?
+  reviewCount Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("medical_packages")
+}
+
+// ─── Corporate Programs ───────────────────────────
+model CorporateProgram {
+  id            String   @id @default(uuid())
+  companyName   String
+  contactName   String
+  contactEmail  String
+  contactPhone  String?
+  employeeCount Int?
+  plan          String   @default("standard") // standard, premium, enterprise
+  status        String   @default("active")
+  features      String[]
+  monthlyFee    Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  employees CorporateEmployee[]
+
+  @@map("corporate_programs")
+}
+
+model CorporateEmployee {
+  id         String           @id @default(uuid())
+  programId  String
+  program    CorporateProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?            @relation("CorporateUser", fields: [userId], references: [id])
+  name       String
+  email      String
+  department String?
+  isActive   Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+
+  @@index([programId])
+  @@map("corporate_employees")
 }

@@ -20,6 +20,14 @@ import {
   AlertTriangle,
   MessageSquare,
   Home,
+  Shield,
+  FileText,
+  Video,
+  Pill,
+  Plane,
+  Package,
+  Sparkles,
+  MoreHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -34,6 +42,17 @@ const navLinks = [
   { href: '/chat', label: 'Chat', icon: MessageSquare },
 ];
 
+const serviceLinks = [
+  { href: '/medical-passport', label: 'Medical Passport', icon: Shield, desc: 'Store your medical info' },
+  { href: '/documents', label: 'Documents', icon: FileText, desc: 'Manage medical documents' },
+  { href: '/telemedicine', label: 'Telemedicine', icon: Video, desc: 'Video & chat consultations' },
+  { href: '/pharmacy', label: 'Pharmacy Finder', icon: Pill, desc: 'Find pharmacies & medicines' },
+  { href: '/trip-planner', label: 'Trip Planner', icon: Plane, desc: 'Health travel planning' },
+  { href: '/embassies', label: 'Embassies', icon: Globe, desc: 'Embassy directory' },
+  { href: '/packages', label: 'Packages', icon: Package, desc: 'Medical tourism packages' },
+  { href: '/health-assistant', label: 'Health Assistant', icon: Sparkles, desc: 'AI health companion' },
+];
+
 export function Header() {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
@@ -41,12 +60,17 @@ export function Header() {
   const { unreadCount } = useNotificationStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [servicesOpen, setServicesOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const servicesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setUserMenuOpen(false);
+      }
+      if (servicesRef.current && !servicesRef.current.contains(event.target as Node)) {
+        setServicesOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -87,6 +111,48 @@ export function Header() {
                 </Link>
               );
             })}
+            {/* Services Dropdown */}
+            <div className="relative" ref={servicesRef}>
+              <button
+                onClick={() => setServicesOpen(!servicesOpen)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  servicesOpen || serviceLinks.some(s => pathname === s.href)
+                    ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800'
+                )}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+                Services
+                <ChevronDown className={cn('h-3 w-3 transition-transform', servicesOpen && 'rotate-180')} />
+              </button>
+              {servicesOpen && (
+                <div className="absolute top-full left-0 mt-1 w-72 rounded-xl bg-white dark:bg-gray-800 shadow-lg border border-gray-100 dark:border-gray-700 py-2 z-50">
+                  {serviceLinks.map((service) => {
+                    const isActive = pathname === service.href;
+                    return (
+                      <Link
+                        key={service.href}
+                        href={service.href}
+                        onClick={() => setServicesOpen(false)}
+                        className={cn(
+                          'flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors',
+                          isActive && 'bg-primary-50 dark:bg-primary-900/20'
+                        )}
+                      >
+                        <div className="h-8 w-8 rounded-lg bg-primary-50 dark:bg-primary-900/30 flex items-center justify-center flex-shrink-0">
+                          <service.icon className="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{service.label}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{service.desc}</p>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </nav>
 
           {/* Right Actions */}
@@ -213,7 +279,7 @@ export function Header() {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <div className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 max-h-[80vh] overflow-y-auto">
           <nav className="px-4 py-3 space-y-1">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
@@ -234,6 +300,30 @@ export function Header() {
                 </Link>
               );
             })}
+            <div className="pt-2 mt-2 border-t border-gray-100 dark:border-gray-800">
+              <p className="px-3 py-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                Services
+              </p>
+              {serviceLinks.map((service) => {
+                const isActive = pathname === service.href;
+                return (
+                  <Link
+                    key={service.href}
+                    href={service.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+                        : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800'
+                    )}
+                  >
+                    <service.icon className="h-5 w-5" />
+                    {service.label}
+                  </Link>
+                );
+              })}
+            </div>
           </nav>
         </div>
       )}
